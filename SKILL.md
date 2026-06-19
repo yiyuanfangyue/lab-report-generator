@@ -41,6 +41,7 @@ description: Use when generating formal experiment/lab reports from Word templat
    ```bash
    python "skills/lab-report-generator/analyze_template.py" --yes "<模板路径>" 格式规范
    ```
+   **运行后读取 `格式规范.json` 检查 `has_cover` 字段**，告知用户封面检测结果。如果不对，手动编辑 `格式规范.json` 将 `has_cover` 改为 `true` 或 `false`，**禁止重跑脚本**。
 
 4. **阶段 2：** 列出截图，用 Read 工具逐一识别后手动填入映射
    ```bash
