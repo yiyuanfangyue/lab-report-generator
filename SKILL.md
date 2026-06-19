@@ -95,14 +95,21 @@ description: Use when generating formal experiment/lab reports from Word templat
 
 ### 阶段 1：模板格式分析
 
+**自动检测模板是否有封面页。** 检测逻辑：
+- 第一页是否含图片（如校徽）
+- 是否有大字号居中文字（>= 13pt）
+- 是否含有"大学/学院/实验报告/姓名/学号"等封面关键词
+- 满足2条以上视为有封面
+
 1. 问用户："请上传你的实验报告模板 .docx"
-2. 运行（不加 --yes，让脚本交互式询问）：
+2. 运行：
    ```bash
    python "skills/lab-report-generator/analyze_template.py" "<路径>" 格式规范
    ```
-3. 展示格式摘要给用户
-4. 问用户："格式正确吗？"
-5. 如需调字号/字体 → **直接编辑格式规范.json，禁止重跑 analyze_template.py**
+3. 展示格式摘要（含封面判定结果）
+4. 问用户："封面判定正确吗？"（如果自动判定不准，可让用户翻转）
+5. 问用户："格式正确吗？"
+6. 如需调字号/字体 → **直接编辑格式规范.json，禁止重跑 analyze_template.py**
    - `body_format.normal.font.size` = 12.0（小四）
    - `body_format.heading1.font.size` = 18.0（小二）
 

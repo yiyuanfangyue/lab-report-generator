@@ -49,6 +49,49 @@ def extract_cover_paragraphs(doc):
     return paragraphs
 
 
+def _detect_cover(paragraphs):
+    """
+    通过启发式规则判断模板是否有封面页。
+    封面页的典型特征：
+    - 至少有一段居中（align=center）
+    - 字号明显大于正文（>= 18pt）
+    - 或者包含图片（校徽）
+    - 或者文本含有典型封面关键词
+    返回 True/False
+    """
+    if not paragraphs:
+        return False
+
+    cover_keywords = ['大学', '学院', '实验报告', '课程设计', '实验名称',
+                      '姓  名', '姓 名', '学  号', '学 号', '班  级', '班 级',
+                      '专  业', '专 业', '指导教师', '成  绩', '成 绩']
+
+    # 关键字匹配
+    all_text = ' '.join(p.get('text', '') for p in paragraphs)
+    keyword_hits = sum(1 for kw in cover_keywords if kw in all_text)
+
+    # 统计特征
+    centered = sum(1 for p in paragraphs if p.get('format', {}).get('align') == 'center')
+    has_image = any(p.get('has_image') for p in paragraphs)
+    large_fonts = 0
+    for p in paragraphs:
+        for r in p.get('runs', []):
+            sz = r.get('sz', 0) or 0
+            if sz >= 26:  # >= 13pt（一半的字号）
+                large_fonts += 1
+                break
+
+    # 判定：满足以下任意两条即可认为有封面
+    score = sum([
+        centered >= 2,
+        has_image,
+        large_fonts >= 2,
+        keyword_hits >= 2,
+        centered >= 1 and large_fonts >= 1,
+    ])
+    return score >= 2
+
+
 def extract_body_format(doc):
     """提取正文格式定义（从 XML 精确读取）"""
     return {
@@ -65,10 +108,12 @@ def print_format_summary(data):
     print(f'    纸张: A4 ({ps["page_width_cm"]}x{ps["page_height_cm"]}cm)')
     print(f'    页边距: 上{ps["margin_top_cm"]}cm 下{ps["margin_bottom_cm"]}cm 左{ps["margin_left_cm"]}cm 右{ps["margin_right_cm"]}cm')
 
-    print(f'\n  封面段落: {len(data["cover_paragraphs"])} 段')
-    for i, cp in enumerate(data['cover_paragraphs']):
-        t = cp['text'][:40] or '(空/图)'
-        print(f'    P{i}: {t}')
+    print(f'\n  封面: {"有（自动检测到）" if data.get("has_cover") else "无（自动判定为无封面）"}')
+    if data.get('has_cover'):
+        print(f'  封面段落: {len(data["cover_paragraphs"])} 段')
+        for i, cp in enumerate(data['cover_paragraphs']):
+            t = cp['text'][:40] or '(空/图)'
+            print(f'    P{i}: {t}')
 
     bf = data['body_format']
     for key, label in [('heading1', '一级标题'), ('heading2', '二级标题'), ('normal', '正文')]:
@@ -93,6 +138,19 @@ def interactive_adjust(data):
     print('  请确认以下格式信息，可直接修改字号（其他项如需修改可手动编辑配置文件）')
     print('=' * 60)
     print_format_summary(data)
+
+    # 让用户确认/修正封面判定
+    detected = data.get('has_cover', False)
+    label = '有' if detected else '无'
+    ans = input(f'  封面判定 ({label})，是否正确？(y=正确 n=翻转 回车不变): ').strip().lower()
+    if ans == 'n':
+        data['has_cover'] = not detected
+        if data['has_cover']:
+            # 重新提取封面段落（从 doc 已经存了，需恢复到 data 中）
+            print('  [注意] 请在后续手动编辑格式规范.json 补充封面段落内容')
+        else:
+            data['cover_paragraphs'] = []
+        print(f'  已翻转为: {"有封面" if data["has_cover"] else "无封面"}')
 
     bf = data['body_format']
     for key, label in [('heading1', '一级标题'), ('heading2', '二级标题'), ('normal', '正文')]:
@@ -361,9 +419,12 @@ def generate_latex_template(page_setup, cover_paragraphs, body_format):
 def extract_template_format(template_path):
     """主函数：分析模板"""
     doc = Document(template_path)
+    cover_paragraphs = extract_cover_paragraphs(doc)
+    has_cover = _detect_cover(cover_paragraphs)
     return {
+        'has_cover': has_cover,
         'page_setup': extract_page_setup(doc),
-        'cover_paragraphs': extract_cover_paragraphs(doc),
+        'cover_paragraphs': cover_paragraphs if has_cover else [],
         'body_format': extract_body_format(doc),
     }
 

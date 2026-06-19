@@ -229,6 +229,27 @@ def generate_latex(latex_format_path, content_json_path, image_map_path, output_
     if placeholder_marker >= 0:
         after_begin = after_begin[:placeholder_marker]
 
+    # 如果模板无封面，去掉 \begin{titlepage}...\end{titlepage} 块
+    # 读取格式数据判断 has_cover
+    has_cover_latex = True
+    fmt_path = content_json_path.replace('实验内容结构.json', '格式规范.json')
+    if os.path.exists(fmt_path):
+        try:
+            fmt_data = load_json(fmt_path)
+            has_cover_latex = fmt_data.get('has_cover', True)
+        except Exception:
+            pass
+    if not has_cover_latex:
+        # 去掉 titlepage 环境
+        tp_begin = after_begin.find(r'\begin{titlepage}')
+        tp_end = after_begin.find(r'\end{titlepage}')
+        if tp_begin >= 0 and tp_end > tp_begin:
+            # 保留 \begin{document} 和 titlepage 之后的内容
+            before_tp = after_begin[:tp_begin]
+            after_tp = after_begin[tp_end + len(r'\end{titlepage}'):]
+            after_begin = before_tp + after_tp
+            print('  模板无封面，已移除 LaTeX titlepage 环境')
+
     # -- 构建正文 --
     body_lines = []
     body_lines.append(r'\setlength{\parindent}{21pt}')
@@ -728,11 +749,13 @@ def build_docx(content_json_path, format_data_path, image_map_path, template_pat
     cover_data = None
     body_format = None
     page_setup = None
+    has_cover = True  # 默认有封面（向后兼容）
     if format_data_path and os.path.exists(format_data_path):
         fmt = load_json(format_data_path)
         cover_data = fmt.get('cover_paragraphs')
         body_format = fmt.get('body_format')
         page_setup = fmt.get('page_setup')
+        has_cover = fmt.get('has_cover', True)
 
     # 或者从模板直接读取
     if not cover_data and template_path and os.path.exists(template_path):
@@ -742,6 +765,7 @@ def build_docx(content_json_path, format_data_path, image_map_path, template_pat
             cover_data = data['cover_paragraphs']
             body_format = data['body_format']
             page_setup = data['page_setup']
+            has_cover = data.get('has_cover', True)
         except Exception as e:
             print(f'  [!] 读取模板格式失败: {e}')
 
@@ -768,9 +792,13 @@ def build_docx(content_json_path, format_data_path, image_map_path, template_pat
     sty.element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
 
     # -- 封面（如果有） --
-    if cover_data:
+    if has_cover and cover_data:
         build_docx_cover(doc, cover_data, template_path)
         doc.add_page_break()
+    elif has_cover:
+        print('  [注意] 模板判定为有封面但未提取到封面数据')
+    else:
+        print('  模板无封面，跳过封面生成')
 
     # -- 正文 --
     format_config = {'body_format': body_format} if body_format else None
