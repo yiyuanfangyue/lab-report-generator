@@ -7,15 +7,68 @@ description: Use when generating formal experiment/lab reports from Word templat
 
 ## 核心原则
 
-**每个阶段完成后必须展示结果并等待用户确认，才能进入下一阶段。用户说"继续"之前，绝不动手。**
+**本技能支持两种运行模式，在流程开始时让用户选择：**
+
+- **全自动模式（Auto）** — 用户只需提供模板和内容，从阶段0到阶段3一键执行，无确认、无MD预览，直接出最终报告
+- **交互式模式（Interactive）** — 每个阶段完成后展示结果，等用户确认后再进入下一阶段
+
+**无论哪种模式，阶段 0 的输入文件始终是模板 .docx（定义章节目录）而不是实验指导书（提供填充内容）。两者角色不同，不能混淆。**
+
+---
+
+## 模式选择
+
+**第一步，问用户：**"请选择模式：全自动（auto）还是交互式（interactive）？"
+
+### 全自动模式
+
+**全自动模式 = 一次性跑完阶段0→1→2→3，无中间确认直接出最终报告。**
+
+流程：
+
+1. **问用户提供以下信息（一次性收集）：**
+   - 实验报告模板 .docx 路径
+   - 截图目录路径
+   - 输出格式（docx / pdf / both）
+   - （可选）实验指导书或答案内容说明
+
+2. **阶段 0：** 分析模板结构 → 填写作业题答案（由你根据专业知识或指导书内容填入 JSON）
+   ```bash
+   python "skills/lab-report-generator/analyze_content.py" --yes "<模板路径>" 实验内容结构.json
+   ```
+
+3. **阶段 1：** 分析模板格式（跳过交互确认）
+   ```bash
+   python "skills/lab-report-generator/analyze_template.py" --yes "<模板路径>" 格式规范
+   ```
+
+4. **阶段 2：** 列出截图，用 Read 工具逐一识别后手动填入映射
+   ```bash
+   python "skills/lab-report-generator/analyze_images.py" --model-vision "<截图目录>" 实验内容结构.json image_map.json
+   ```
+   然后用 Read 工具逐张查看截图，编辑 image_map.json 填入路径。
+
+5. **阶段 3：** 直接生成最终报告（跳过 MD 预览）
+   ```bash
+   python "skills/lab-report-generator/generate_report.py" \
+     --content 实验内容结构.json --images image_map.json \
+     --format-data 格式规范.json --latex-format 格式规范-LaTeX模板.tex \
+     --template "<模板路径>" --format <docx|pdf|both> --output 实验报告_最终版
+   ```
+
+6. 告知用户文件路径
+
+### 交互式模式
+
+**交互式模式 = 每阶段展示结果 → 用户确认 → 进入下一阶段。用户说"继续"之前，绝不动手。**
 
 **先生成 MD 预览给用户确认内容，再出最终文件。**
 
 **禁止自行退出 skill 流程：一旦进入本 skill，必须按阶段顺序执行直到用户确认完成。不能中途切换到其他无关操作（如直接修改脚本、生成文件）。**
 
-**阶段 0 的输入文件是模板 .docx（定义章节目录）而不是实验指导书（提供填充内容）。两者角色不同，不能混淆。**
+---
 
-## 工作流程
+## 交互式模式工作流程
 
 ### 阶段 0：实验内容分析
 
@@ -140,30 +193,9 @@ description: Use when generating formal experiment/lab reports from Word templat
 
 ## 禁止项
 
-### 禁止重跑 analyze_template.py
-一旦用户确认格式后，任何时候都不要重跑此脚本。改格式直接改格式规范.json。
+以下禁止项区分模式：
 
-**No exceptions:**
-- "只是更新一下" → 不行
-- "上次跑的时候 has_image 是错的" → 手动改格式规范.json 中的 cover_paragraphs[0].has_image 即可
-- "需要更新 XPath" → 改脚本，不是重跑
-
-### 禁止在阶段0用指导书当输入
-`analyze_content.py` 的输入应该是**模板 .docx**（定义章节结构），而不是实验指导书（提供填充内容）。
-
-**No exceptions:**
-- "指导书内容更丰富" → 结构从模板来，内容手动填入
-- "模板只有1个章节" → 模板结构就是报告结构，不要自己编造章节
-- "我想把5个实验都放进去" → 如果模板只定义了1套结构，就按1套来
-
-### 禁止问实验选择问题
-模板的章节结构就是报告的结构。不要在阶段0问用户"选哪个实验"。
-
-**No exceptions:**
-- "指导书有5个实验" → 模板有几次实验结构就生成几次
-- "用户可能想合并" → 先展示模板结构，让用户自己说要不要改
-
-### 禁止跳过 MD 预览
+### [交互式模式] 禁止跳过 MD 预览
 阶段 3 必须先出 MD，用户确认后再出 DOCX/PDF。
 
 **No exceptions:**
@@ -173,7 +205,7 @@ description: Use when generating formal experiment/lab reports from Word templat
 - "图片映射都确认过了直接生成吧" → 不行，MD 预览是内容确认，不是图片确认
 - "上个用户刚确认过类似的内容" → 每次都不一样
 
-### 禁止问完不等人
+### [交互式模式] 禁止问完不等人
 问了用户问题（如"要什么格式？"）后，必须用 input() 或阻塞等待用户输入。不能自作主张执行。
 
 **No exceptions:**
@@ -182,8 +214,8 @@ description: Use when generating formal experiment/lab reports from Word templat
 - "先跑再问节约时间" → 跑错了浪费更多时间
 - "both 是最全的" → 用户可能有不同需求
 
-### 禁止退出 skill 流程
-一旦进入 lab-report-generator skill，必须按阶段顺序执行，直到用户确认完成。
+### [交互式模式] 禁止退出 skill 流程
+一旦进入交互式模式，必须按阶段顺序执行，直到用户确认完成。
 
 **No exceptions:**
 - "这个 bug 修了，改一下脚本就行" → 先记录，走完流程再修
@@ -191,12 +223,35 @@ description: Use when generating formal experiment/lab reports from Word templat
 - "先出文件，用户等不及了" → 按阶段来，跳过=重做
 - "我知道需求了直接生成" → 再急也要按流程
 
-### 禁止用 `--format both` 作为默认值
+### [交互式模式] 禁止用 `--format both` 作为默认值
 阶段 3 必须问用户要什么格式，`input()` 阻塞等待。
 
 **No exceptions:**
 - "用户之前要过 both" → 每次都要问
 - "both 最安全" → 生成两个文件可能更慢
+
+### [全模式通用] 禁止重跑 analyze_template.py
+一旦用户确认格式后，任何时候都不要重跑此脚本。改格式直接改格式规范.json。
+
+**No exceptions:**
+- "只是更新一下" → 不行
+- "上次跑的时候 has_image 是错的" → 手动改格式规范.json 中的 cover_paragraphs[0].has_image 即可
+- "需要更新 XPath" → 改脚本，不是重跑
+
+### [全模式通用] 禁止在阶段0用指导书当输入
+`analyze_content.py` 的输入应该是**模板 .docx**（定义章节结构），而不是实验指导书（提供填充内容）。
+
+**No exceptions:**
+- "指导书内容更丰富" → 结构从模板来，内容手动填入
+- "模板只有1个章节" → 模板结构就是报告结构，不要自己编造章节
+- "我想把5个实验都放进去" → 如果模板只定义了1套结构，就按1套来
+
+### [全模式通用] 禁止问实验选择问题
+模板的章节结构就是报告的结构。不要在阶段0问用户"选哪个实验"。
+
+**No exceptions:**
+- "指导书有5个实验" → 模板有几次实验结构就生成几次
+- "用户可能想合并" → 先展示模板结构，让用户自己说要不要改
 
 ### 禁止在 Python f-string 中写 LaTeX 命令
 f-string 中 `\b`、`\t`、`\n` 等会被 Python 解释为转义字符。
@@ -224,19 +279,23 @@ f'    format     = \\\\zihao{{{h1_zh}}}\\bfseries\\setstretch{{1.5}},'
 
 出现以下任一情况，立刻 STOP：
 
+### 交互式模式红牌
 - "格式已经确认过了，我直接改一下 JSON 就行，不用再展示" → STOP，展示修改后的结果
 - "这个 bug 修了，重跑一下分析脚本更新数据" → STOP，重跑会覆盖用户手动改的值
 - "内容很简单，直接出 DOCX 吧" → STOP，先出 MD 预览
 - "我知道模板在哪里，不用问用户了" → STOP，必须问
 - "用户之前说过格式正确，这次不展示了" → STOP，每次都展示
 - "用户之前说要 both，我不用再问就直接执行" → STOP，每次都要问
-- "反斜杠多加几层总能转义对" → STOP，用 r'' raw string 拼接
-- "我把指导书跑一下 analyze_content 看看结构" → STOP，analyze_content 跑的是模板不是指导书
-- "用户说全部实验都要，我合并一下" → STOP，模板有几套结构就生成几套
 - "用户已经确认了图片映射，直接生成最终文件吧" → STOP，先出 MD 预览
 - "我先把图注改简短，不涉及内容结构问题不大" → STOP，MD 预览后才能生成
 - "先 both 都出了，用户要哪个用哪个" → STOP，必须问用户
+
+### 全模式通用红牌
+- "反斜杠多加几层总能转义对" → STOP，用 r'' raw string 拼接
+- "我把指导书跑一下 analyze_content 看看结构" → STOP，analyze_content 跑的是模板不是指导书
+- "用户说全部实验都要，我合并一下" → STOP，模板有几套结构就生成几套
 - "我跳出流程查一下这个问题" → STOP，在 skill 框架内解决问题
+- "全自动模式太麻烦，我在交互式里跳过确认吧" → STOP，选了交互式就必须走完确认流程
 
 ## 已知边界情况
 

@@ -377,6 +377,7 @@ if __name__ == '__main__':
     if len(args) < 1:
         print('用法: python analyze_template.py [--yes] <模板.docx> [输出前缀]')
         print('说明: 分析 .docx 模板格式 -> 格式规范.md + LaTeX模板.tex + 格式规范.json')
+        print('  --yes  自动模式，跳过交互式字号调整，直接输出')
         sys.exit(1)
 
     template_path = args[0]
