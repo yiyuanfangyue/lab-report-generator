@@ -62,32 +62,48 @@ def _detect_cover(paragraphs):
     if not paragraphs:
         return False
 
-    cover_keywords = ['大学', '学院', '实验报告', '课程设计', '实验名称',
-                      '姓  名', '姓 名', '学  号', '学 号', '班  级', '班 级',
-                      '专  业', '专 业', '指导教师', '成  绩', '成 绩']
+    # 封面特有的必填字段（这些基本只出现在封面）
+    cover_only_fields = ['姓  名', '姓 名', '学  号', '学 号',
+                         '班  级', '班 级', '学生姓名', '学生学号',
+                         '学生班级', '专  业', '专 业', '指导教师',
+                         '成  绩', '成 绩']
 
-    # 关键字匹配
-    all_text = ' '.join(p.get('text', '') for p in paragraphs)
-    keyword_hits = sum(1 for kw in cover_keywords if kw in all_text)
+    # 封面常见关键词（可出现多次）
+    cover_keywords = ['大学', '学院', '实验报告', '课程设计',
+                      '实验名称', '实验课程']
+
+    # 首段是否有图片
+    first_has_image = paragraphs[0].get('has_image', False) if paragraphs else False
 
     # 统计特征
+    all_text = ' '.join(p.get('text', '') for p in paragraphs)
     centered = sum(1 for p in paragraphs if p.get('format', {}).get('align') == 'center')
     has_image = any(p.get('has_image') for p in paragraphs)
     large_fonts = 0
     for p in paragraphs:
         for r in p.get('runs', []):
             sz = r.get('sz', 0) or 0
-            if sz >= 26:  # >= 13pt（一半的字号）
+            if sz >= 26:  # >= 13pt
                 large_fonts += 1
                 break
 
-    # 判定：满足以下任意两条即可认为有封面
+    hits_cover_only = sum(1 for kw in cover_only_fields if kw in all_text)
+    hits_keywords = sum(1 for kw in cover_keywords if kw in all_text)
+
+    # 判定逻辑
+    # 强信号：有封面专属字段（姓名/学号/班级等），几乎100%是封面
+    if hits_cover_only >= 1:
+        return True
+
+    # 中强信号：首段有图片 + 有封面关键词（如"大学""实验报告"）
+    if first_has_image and hits_keywords >= 1:
+        return True
+
+    # 弱信号组合：以下满足任意2条
     score = sum([
-        centered >= 2,
-        has_image,
+        centered >= 3,
+        has_image and hits_keywords >= 1,
         large_fonts >= 2,
-        keyword_hits >= 2,
-        centered >= 1 and large_fonts >= 1,
     ])
     return score >= 2
 
