@@ -928,6 +928,12 @@ def main():
                 else:
                     paths = []
                     empty.append(img_id)
+            elif isinstance(raw_paths, list):
+                if raw_paths:
+                    paths = raw_paths
+                else:
+                    paths = []
+                    empty.append(img_id)
             else:
                 paths = raw_paths or []
             for p in paths:
