@@ -41,13 +41,13 @@ description: Use when generating formal experiment/lab reports from Word templat
    ```bash
    python "skills/lab-report-generator/analyze_template.py" --yes "<模板路径>" 格式规范
    ```
-   **运行后读取 `格式规范.json` 检查 `has_cover` 字段**，告知用户封面检测结果。如果不对，手动编辑 `格式规范.json` 将 `has_cover` 改为 `true` 或 `false`，**禁止重跑脚本**。
+   **读取 `格式规范.json` 检查 `has_cover` 字段**，告知用户封面检测结果。如果不对，用 Edit 工具将 `格式规范.json` 中的 `has_cover` 改为 `true` 或 `false`，**禁止重跑脚本**。
 
 4. **阶段 2：** 列出截图，用 Read 工具逐一识别后手动填入映射
    ```bash
    python "skills/lab-report-generator/analyze_images.py" --model-vision "<截图目录>" 实验内容结构.json image_map.json
    ```
-   然后用 Read 工具逐张查看截图，编辑 image_map.json 填入路径。
+   然后用 Read 工具逐张查看截图，用 Edit 工具编辑 image_map.json 填入路径。
 
 5. **阶段 3：** 直接生成最终报告（跳过 MD 预览）
    ```bash
@@ -129,7 +129,7 @@ description: Use when generating formal experiment/lab reports from Word templat
      --model-vision "<截图目录>" 实验内容结构.json image_map.json
    ```
 3. **用 Read 工具逐一查看每张截图**（一次可看多张），确认每张截图的内容
-4. 根据识图结果，手动编辑 `image_map.json`，将截图路径填入对应的插入点
+4. 根据识图结果，**用 Edit 工具编辑 `image_map.json`**，将截图路径填入对应的插入点
    - 单图：`"img_01": "完整/路径/截图.png"`
    - 多图：`"img_03": ["路径1", "路径2", ...]`
 5. 展示映射结果给用户
